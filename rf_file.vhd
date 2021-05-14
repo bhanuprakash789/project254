@@ -11,8 +11,7 @@ entity rf_file is
 	port (rf_a1, rf_a2, rf_a3: in std_logic_vector(2 downto 0);
 		 rf_d3: in std_logic_vector(15 downto 0);
 		 rf_d1, rf_d2: out std_logic_vector(15 downto 0);
-		 register0,register1,register2,register3,register4,register5,register6,
-		 register7 : out std_logic_vector(15 downto 0); 
+		 register0,register1,register2,register3,register4,register5,register6,register7 : out std_logic_vector(15 downto 0); 
 		 rf_write_in, clk: in std_logic);
 end entity;
 
