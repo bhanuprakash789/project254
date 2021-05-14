@@ -9,7 +9,7 @@ use ieee.std_logic_unsigned.all;
 
 entity IITB_PROC is 
 	port (clk, reset : in std_logic;
-			register0,register1,register2,register3,register4,register5,register6,register7, pc_ptr : out std_logic_vector(15 downto 0);
+			register0,register1,register2,register3,register4,register5,register6,register7, pc_ptr, reg : out std_logic_vector(15 downto 0);
 			C, Z : out std_logic);
 end entity;
 
@@ -50,12 +50,12 @@ architecture Form of IITB_PROC is
 	
 	
 	type FSMState is (S0, S1, S2, S3, S4, S5, S6, S7, S8, S9, S10, S11, S12, S13, S14, S15, S16, 
-		S17, S18, S);
+		S17, S18, S, S19);
 	signal fsm_state: FSMState := S0;
 	
 	signal instr_reg, instr_pointer: std_logic_vector(15 downto 0) := x"0000";
-	signal mem_A, mem_Din, MEM_DOUT, ALU_A, ALU_B, ALU_O, RF_D1, RF_D2, RF_D3, REG0, REG1,REG2,REG3,REG4,REG5,REG6,REG7,SIGN_EXTENDER_10_OUTPUT, SIGN_EXTENDER_7_OUTPUT : std_logic_vector(15 downto 0) := x"0000";
-	signal MEM_WRITING, ALU_C, ALU_Z, ALU_X, RF_WRITING : std_logic := '0';
+	signal mem_A, mem_Din, MEM_DOUT, ALU_A, ALU_B, ALU_O, RF_D1, RF_D2, RF_D3, REG0, REG1,REG2,REG3,REG4,REG5,REG6,REG7, SIGN_EXTENDER_10_OUTPUT, SIGN_EXTENDER_7_OUTPUT : std_logic_vector(15 downto 0) := x"0000";
+	signal MEM_WRITING, ALU_C, ALU_Z, ALU_X, C_FLAG, Z_FLAG, RF_WRITING : std_logic := '0';
 	signal RF_A1, RF_A2, RF_A3 : std_logic_vector(2 downto 0);
 	signal T1, T2, T3, T4, T5 : std_logic_vector(15 downto 0) := x"0000";
 	signal ALU_CONTROL : std_logic;
@@ -152,12 +152,15 @@ architecture Form of IITB_PROC is
 						if conv_integer(RF_D1) = conv_integer(RF_D2) ---need to implement this
 						then
 							next_fsm_state_var := S15;
+						else 
+							next_fsm_state_var := S;
 						end if;
 					when "0000" =>
-						if (instr_reg(1 downto 0) = "00" or (instr_reg(1 downto 0) = "10" and TC_TEMP ='1') or (instr_reg(1 downto 0) = "01" and TZ_TEMP = '1'))
+						if (instr_reg(1 downto 0) = "00" or (instr_reg(1 downto 0) = "10" and C_FLAG ='1') or (instr_reg(1 downto 0) = "01" and Z_FLAG = '1'))
 						then 
 							ALU_CONTROL <= '0';
 							next_fsm_state_var := S2;
+							report "check";
 						else
 							next_fsm_state_var := S;
 						end if;
@@ -179,7 +182,10 @@ architecture Form of IITB_PROC is
 				ALU_A <= T1;
 				ALU_B <= T2;
 				Temp_T3 := ALU_O;
+				if (instr_reg(15 downto 12) = "0000") 
+				then
 				TC_TEMP := ALU_C;
+				end if;
 				TZ_TEMP := ALU_Z;
 				next_fsm_state_var := S3;
 												
@@ -216,8 +222,8 @@ architecture Form of IITB_PROC is
 			when S7 =>
 				ALU_CONTROL <= '0';
 				ALU_A <= T2;
-				SIGN_EXTERNDER_10_INPUT<= instr_reg(5 downto 0);
-				ALU_B <= SIGN_EXTENDER_10_OUTPUT;
+				--SIGN_EXTERNDER_10_INPUT<= instr_reg(5 downto 0);
+				ALU_B <= "0000000000" & instr_reg(5 downto 0);
 				Temp_T2 := ALU_O;
 				
 				case(instr_reg(15 downto 12)) is
@@ -232,8 +238,9 @@ architecture Form of IITB_PROC is
 				
 			
 			when S8 =>
-			
+				
 				mem_A <= T2;
+				report integer'image(conv_integer(T2));
 				Temp_T3 := MEM_DOUT;
 				MEM_WRITING<='0';
 				if (conv_integer(Temp_T3) = 0) ---need to implement this
@@ -257,11 +264,11 @@ architecture Form of IITB_PROC is
 			when S11 =>
 				MEM_WRITING <= '0';
 				ALU_CONTROL <= '0';
+				MEM_A <= T1;
+				temp_T2 := MEM_DOUT;
 				ALU_A <= T1;
 				ALU_B <= "0000000000000001";
 				temp_T1 := ALU_O;
-				MEM_A <= temp_T1;
-				temp_T2 := MEM_DOUT;
 				next_fsm_state_var:= S12;
 				
 			when S12 =>
@@ -321,16 +328,28 @@ architecture Form of IITB_PROC is
 				RF_A2 <= instr_reg(8 downto 6);
 				temp_T2 := RF_D2;
 				
-				case(instr_reg(3 downto 0)) is
+				case(instr_reg(15 downto 12)) is
 				
 				when "1000" =>
-					next_fsm_state_var:= S15;
+					next_fsm_state_var:= S19;
 					
 				when "1001" =>
 					next_fsm_state_var:= S17;
 				when others =>
 					null;
 				end case;
+				
+			when S19 =>
+				ALU_CONTROL <= '0';
+				ALU_A <= instr_pointer;
+				if (instr_reg(8) = '0')
+				then 
+				ALU_B <= "0000000" & instr_reg(8 downto 0);
+				else 
+				ALU_B <= "1111111" & instr_reg(8 downto 0);
+				end if;
+				pc := ALU_O;
+				next_fsm_state_var:= S0;
 		
 			when S17 => 
 				pc := T2;
@@ -366,16 +385,19 @@ architecture Form of IITB_PROC is
 				T1 <= temp_T1; 
 				T2 <= temp_T2; 
 				T3 <= temp_T3; 
-				T4 <= temp_T4; 
-				T5 <= temp_T5;
+				C_FLAG <= TC_TEMP;
+				Z_FLAG <= TZ_TEMP;
+				
+				--T4 <= temp_T4; 
+				--T5 <= temp_T5;
 				instr_reg <= instr_reg_var;
 				
-				if TC_TEMP = 'X' and TZ_TEMP = 'X'  then 
-					C <= '0'; Z <= '0';
-				else 
-					C <= TC_TEMP; 
-					Z <= TZ_TEMP;
-				end if;
+--				if TC_TEMP = 'X' and TZ_TEMP = 'X'  then 
+--					C <= '0'; Z <= '0';
+--				else 
+--					C <= TC_TEMP; 
+--					Z <= TZ_TEMP;
+--				end if;
 				
 				instr_pointer <= pc;
 				pc_ptr <= pc;
@@ -388,8 +410,12 @@ architecture Form of IITB_PROC is
 				register5 <= REG5;
 				register6 <= REG6;
 				register7 <= REG7;
+				reg <= instr_reg;
+				C <= C_FLAG;
+				Z <= Z_FLAG;
 			
 			end if;
 		end if;
 	end process;
 end Form;
+
